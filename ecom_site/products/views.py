@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from .forms import RegistrationForm
 from django.contrib.auth import authenticate, login, logout
-from .models import Product, Category
+from .models import Product, Category, Cart, CartItem, Wishlist
 
 
 def register(request):
@@ -73,3 +73,52 @@ def product_detail(request, slug):
         'product': product,
         'related_products': related_products,
     })
+
+def cart_view(request):
+    cart, _ = Cart.objects.get_or_create(user=request.user)
+    items = cart.items.all()
+    total_price = sum(item.get_total_price() for item in items)
+    return render(request, 'cart/cart.html', {
+        'cart': cart,
+        'items': items,
+        'total_price': total_price,
+    })
+
+def add_to_cart(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+    cart, _ = Cart.objects.get_or_create(user=request.user)
+    cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product)
+
+    if not created:
+        cart_item.quantity += 1
+        cart_item.save()
+
+    return redirect('cart_view')
+
+def remove_from_cart(request, item_id):
+    cart_item = get_object_or_404(CartItem, id=item_id)
+    cart_item.delete()
+    return redirect('cart_view')
+
+def update_cart(request, item_id):
+    cart_item = get_object_or_404(CartItem, id=item_id)
+    quantity = int(request.POST.get('quantity', 1))
+    if quantity > 0:
+        cart_item.quantity = quantity
+        cart_item.save()
+    return redirect('cart_view')
+def wishlist_view(request):
+    wishlist, _ = Wishlist.objects.get_or_create(user=request.user)
+    return render(request, 'wishlist/wishlist.html', {'wishlist': wishlist})
+
+def add_to_wishlist(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+    wishlist, _ = Wishlist.objects.get_or_create(user=request.user)
+    wishlist.products.add(product)
+    return redirect('wishlist_view')
+
+def remove_from_wishlist(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+    wishlist, _ = Wishlist.objects.get_or_create(user=request.user)
+    wishlist.products.remove(product)
+    return redirect('wishlist_view')
